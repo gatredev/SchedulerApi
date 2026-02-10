@@ -22,5 +22,10 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<ScheduleSpecialization>()
             .HasKey(i => new { i.ScheduleId, i.SpecializationId });
+
+
+        modelBuilder.Entity<Appointment>().HasIndex(a => new { a.DoctorId, a.StartTime, a.EndTime });
+        modelBuilder.Entity<ScheduleSpecialization>().HasIndex(x => x.SpecializationId);
+        modelBuilder.Entity<Schedule>().HasIndex(s => new { s.DoctorId, s.StartDate, s.EndDate });
     }
 }
