@@ -1,4 +1,9 @@
 REST API service for searching available medical appointment slots.
+    
+    To run this solution you will need:
+    1. Installed .net10 SDK
+    2. Call "dotent run" in Scheduler.Api project folder
+ 
 
 ---
 
