@@ -106,8 +106,8 @@ public class SeedController : ControllerBase
                 Doctor = karolSercowy,
                 StartDate = new DateOnly(2025, 9, 16),
                 EndDate = new DateOnly(2025, 9, 16),
-                StartTime = new TimeSpan(8, 30, 0),
-                EndTime = new TimeSpan(12, 30, 0),
+                StartTime = new TimeOnly(8, 30, 0),
+                EndTime = new TimeOnly(12, 30, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization
                     {
@@ -120,8 +120,8 @@ public class SeedController : ControllerBase
                 Doctor = karolSercowy,
                 StartDate = new DateOnly(2025, 9, 17),
                 EndDate = new DateOnly(2025, 9, 17),
-                StartTime = new TimeSpan(9, 30, 0),
-                EndTime = new TimeSpan(12, 30, 0),
+                StartTime = new TimeOnly(9, 30, 0),
+                EndTime = new TimeOnly(12, 30, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = kardiologia },
                     new ScheduleSpecialization { Specialization = kardiologiaDziecieca }
@@ -132,8 +132,8 @@ public class SeedController : ControllerBase
                 DoctorId = karolSercowy.Id,
                 StartDate = new DateOnly(2025, 9, 18),
                 EndDate = new DateOnly(2025, 9, 18),
-                StartTime = new TimeSpan(9, 0, 0),
-                EndTime = new TimeSpan(12, 0, 0),
+                StartTime = new TimeOnly(9, 0, 0),
+                EndTime = new TimeOnly(12, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = kardiologiaDziecieca }
                 ]
@@ -143,8 +143,8 @@ public class SeedController : ControllerBase
                 DoctorId = karolSercowy.Id,
                 StartDate = new DateOnly(2025, 9, 22),
                 DaysOfWeek = DayOfWeekFlags.Tuesday | DayOfWeekFlags.Friday,
-                StartTime = new TimeSpan(10, 0, 0),
-                EndTime = new TimeSpan(16, 0, 0),
+                StartTime = new TimeOnly(10, 0, 0),
+                EndTime = new TimeOnly(16, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = kardiologia },
                     new ScheduleSpecialization { Specialization = kardiologiaDziecieca }
@@ -164,8 +164,8 @@ public class SeedController : ControllerBase
                 StartDate = new DateOnly(2025, 9, 1),
                 EndDate = new DateOnly(2025, 10, 31),
                 DaysOfWeek = DayOfWeekFlags.Wednesday,
-                StartTime = new TimeSpan(16, 0, 0),
-                EndTime = new TimeSpan(18, 0, 0),
+                StartTime = new TimeOnly(16, 0, 0),
+                EndTime = new TimeOnly(18, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = nefrologia },
                 ]
@@ -176,8 +176,8 @@ public class SeedController : ControllerBase
                 StartDate = new DateOnly(2025, 9, 1),
                 EndDate = new DateOnly(2025, 10, 31),
                 DaysOfWeek = DayOfWeekFlags.Tuesday,
-                StartTime = new TimeSpan(12, 0, 0),
-                EndTime = new TimeSpan(15, 0, 0),
+                StartTime = new TimeOnly(12, 0, 0),
+                EndTime = new TimeOnly(15, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = nefrologia },
                 ]
@@ -187,8 +187,8 @@ public class SeedController : ControllerBase
                 Doctor = piotrNerkowy,
                 StartDate = new DateOnly(2025, 9, 1),
                 DaysOfWeek = DayOfWeekFlags.Friday,
-                StartTime = new TimeSpan(8, 0, 0),
-                EndTime = new TimeSpan(11, 0, 0),
+                StartTime = new TimeOnly(8, 0, 0),
+                EndTime = new TimeOnly(11, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = nefrologia },
                 ]
@@ -205,8 +205,8 @@ public class SeedController : ControllerBase
                 Doctor = mikolajWewnetrzny,
                 StartDate = new DateOnly(2025, 9, 4),
                 EndDate = new DateOnly(2025, 9, 4),
-                StartTime = new TimeSpan(16, 30, 0),
-                EndTime = new TimeSpan(18, 30, 0),
+                StartTime = new TimeOnly(16, 30, 0),
+                EndTime = new TimeOnly(18, 30, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = interna }
                 ]
@@ -217,8 +217,8 @@ public class SeedController : ControllerBase
                 StartDate = new DateOnly(2025, 9, 5),
                 EndDate = new DateOnly(2025, 10, 31),
                 DaysOfWeek = DayOfWeekFlags.Tuesday,
-                StartTime = new TimeSpan(12, 0, 0),
-                EndTime = new TimeSpan(15, 0, 0),
+                StartTime = new TimeOnly(12, 0, 0),
+                EndTime = new TimeOnly(15, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = nefrologia }
                 ]
@@ -228,8 +228,8 @@ public class SeedController : ControllerBase
                 Doctor = mikolajWewnetrzny,
                 StartDate = new DateOnly(2025, 1, 8),
                 DaysOfWeek = DayOfWeekFlags.Monday,
-                StartTime = new TimeSpan(8, 0, 0),
-                EndTime = new TimeSpan(11, 0, 0),
+                StartTime = new TimeOnly(8, 0, 0),
+                EndTime = new TimeOnly(11, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = nefrologia }
                 ]
@@ -239,8 +239,8 @@ public class SeedController : ControllerBase
                 Doctor = mikolajWewnetrzny,
                 StartDate = new DateOnly(2025, 1, 8),
                 DaysOfWeek = DayOfWeekFlags.Monday,
-                StartTime = new TimeSpan(11, 0, 0),
-                EndTime = new TimeSpan(14, 0, 0),
+                StartTime = new TimeOnly(11, 0, 0),
+                EndTime = new TimeOnly(14, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = interna },
                     new ScheduleSpecialization { Specialization = kardiologia }
@@ -249,10 +249,10 @@ public class SeedController : ControllerBase
             new Schedule
             {
                 Doctor = mikolajWewnetrzny,
-                StartDate = new DateOnly(2025, 1, 8),
+                StartDate = new DateOnly(2025, 9, 8),
                 DaysOfWeek = DayOfWeekFlags.Monday,
-                StartTime = new TimeSpan(15, 0, 0), // TODO: Change back to hour 16
-                EndTime = new TimeSpan(18, 0, 0),
+                StartTime = new TimeOnly(16, 0, 0),
+                EndTime = new TimeOnly(18, 0, 0),
                 ScheduleSpecializations = [
                     new ScheduleSpecialization { Specialization = interna },
                     new ScheduleSpecialization { Specialization = kardiologia },
