@@ -45,6 +45,8 @@ public class CalendarService
         }
 
         // check for general slot availability
+        // This could be moved to sql execution if used sqlServer with EF.Functions
+        // or postgres using tstzrange type
         scheduleConfigurationCandidates = scheduleConfigurationCandidates
             .Where(i => (i.Schedule.EndTime - i.Schedule.StartTime) >= TimeSpan.FromMinutes(request.SlotDurationMinutes)).ToList();
 
