@@ -4,16 +4,16 @@ using Scheduler.Api.Services;
 
 namespace Scheduler.Api.Controllers;
 
-[Route("/")]
-public class CalendarController : ControllerBase
+[Route("/api/availability")]
+public class AvailabilityController : ControllerBase
 {
     private readonly CalendarService _calendarService;
 
-    public CalendarController(CalendarService calendarService)
+    public AvailabilityController(CalendarService calendarService)
     {
         _calendarService = calendarService;
     }
 
-    [HttpGet("query")]
+    [HttpGet]
     public async Task<IActionResult> Query(AvailableSlotsRequest request) => Ok(await _calendarService.BuildCalendarAsync(request));
 }
