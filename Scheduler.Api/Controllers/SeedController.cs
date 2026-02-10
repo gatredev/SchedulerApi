@@ -16,16 +16,10 @@ public class SeedController : ControllerBase
         _context = context;
     }
 
-    /// <summary>
-    /// Inicjalizuje bazę danych danymi testowymi
-    /// </summary>
     [HttpPost("initialize")]
     public async Task<IActionResult> Initialize()
     {
-        // Wyczyść istniejące dane
         _context.Appointments.RemoveRange(_context.Appointments);
-        //_context.ScheduleSpecializations.RemoveRange(_context.ScheduleSpecializations);
-        //_context.Schedules.RemoveRange(_context.Schedules);
         _context.Doctors.RemoveRange(_context.Doctors);
         _context.Specializations.RemoveRange(_context.Specializations);
         await _context.SaveChangesAsync();
@@ -47,9 +41,7 @@ public class SeedController : ControllerBase
         _context.Doctors.AddRange(karolSercowy, piotrNerkowy, mikolajWewnetrzny);
         await _context.SaveChangesAsync();
 
-        // Dodaj zajęte terminy
         _context.Appointments.AddRange(
-            // Karol Sercowy
             new Appointment
             {
                 DoctorId = karolSercowy.Id,
@@ -62,7 +54,6 @@ public class SeedController : ControllerBase
                 StartTime = new DateTime(2025, 9, 26, 12, 0, 0),
                 EndTime = new DateTime(2025, 9, 26, 12, 30, 0)
             },
-            // Piotr Nerkowy
             new Appointment
             {
                 DoctorId = piotrNerkowy.Id,
@@ -75,7 +66,6 @@ public class SeedController : ControllerBase
                 StartTime = new DateTime(2025, 10, 7, 12, 10, 0),
                 EndTime = new DateTime(2025, 10, 7, 12, 20, 0)
             },
-            // Mikołaj Wewnętrzny
             new Appointment
             {
                 DoctorId = mikolajWewnetrzny.Id,
@@ -98,7 +88,6 @@ public class SeedController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        // Dodaj grafiki Karola Sercowego
         var kamilSercowySchedules = new[]
         {
             new Schedule
@@ -155,7 +144,6 @@ public class SeedController : ControllerBase
         await _context.Schedules.AddRangeAsync(kamilSercowySchedules);
         await _context.SaveChangesAsync();
 
-        // Dodaj grafiki Piotra Nerkowego
         var piotrNerkowySchedules = new[]
         {
             new Schedule
@@ -198,7 +186,6 @@ public class SeedController : ControllerBase
         await _context.Schedules.AddRangeAsync(piotrNerkowySchedules);
         await _context.SaveChangesAsync();
 
-        // Dodaj grafiki Mikołaja Wewnętrznego
         var mikolajWewnetrznySchedules = new[]{
             new Schedule
             {
