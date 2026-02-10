@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Time.Testing;
 using Scheduler.Api.Data;
 using Scheduler.Api.DTOs;
 using Scheduler.Api.Models;
@@ -20,7 +21,9 @@ public class CalendarServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _service = new CalendarService(_context);
+        var fakeTimeProvider = new FakeTimeProvider();
+        fakeTimeProvider.SetUtcNow(new DateTime(2023, 1, 1, 12, 0, 0));
+        _service = new CalendarService(_context, fakeTimeProvider);
     }
 
     public void Dispose()
@@ -30,6 +33,91 @@ public class CalendarServiceTests : IDisposable
     }
 
     #region BuildCalendarAsync Tests
+
+    [Fact]
+    public async Task BuildCalendarAsync_AllSchedulesExpired_ReturnsEmptyList()
+    {
+        // Arrange
+        var specialization = new Specialization { Id = 1, Name = "Kardiologia" };
+        var doctor = new Doctor { Id = 1, FirstName = "Jan", LastName = "Kowalski" };
+
+        var schedule = new Schedule
+        {
+            Id = 1,
+            DoctorId = doctor.Id,
+            Doctor = doctor,
+            StartDate = new DateOnly(2022, 9, 15),
+            EndDate = new DateOnly(2022, 9, 15),
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(12, 0),
+            ScheduleSpecializations = new List<ScheduleSpecialization>
+            {
+                new ScheduleSpecialization { SpecializationId = specialization.Id, Specialization = specialization }
+            }
+        };
+
+        _context.Specializations.Add(specialization);
+        _context.Doctors.Add(doctor);
+        _context.Schedules.Add(schedule);
+        await _context.SaveChangesAsync();
+
+        var request = new AvailableSlotsRequest
+        {
+            SpecializationId = specialization.Id,
+            DateFrom = new DateOnly(2022, 1, 1),
+            DateTo = new DateOnly(2025, 9, 30),
+            SlotDurationMinutes = 30,
+            MaxResults = 10
+        };
+
+        // Act
+        var result = await _service.BuildCalendarAsync(request);
+
+        // Assert
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task BuildCalendarAsync_ScheduleForTodayOverlapingHours_ReturnsAdjustedStartTime()
+    {
+        // Arrange
+        var specialization = new Specialization { Id = 1, Name = "Kardiologia" };
+        var doctor = new Doctor { Id = 1, FirstName = "Jan", LastName = "Kowalski" };
+
+        var schedule = new Schedule
+        {
+            Id = 1,
+            DoctorId = doctor.Id,
+            Doctor = doctor,
+            StartDate = new DateOnly(2022, 9, 15),
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(20, 0),
+            ScheduleSpecializations = new List<ScheduleSpecialization>
+            {
+                new ScheduleSpecialization { SpecializationId = specialization.Id, Specialization = specialization }
+            }
+        };
+
+        _context.Specializations.Add(specialization);
+        _context.Doctors.Add(doctor);
+        _context.Schedules.Add(schedule);
+        await _context.SaveChangesAsync();
+
+        var request = new AvailableSlotsRequest
+        {
+            SpecializationId = specialization.Id,
+            DateFrom = new DateOnly(2022, 9, 1),
+            DateTo = new DateOnly(2025, 9, 30),
+            SlotDurationMinutes = 30,
+            MaxResults = 10
+        };
+
+        // Act
+        var result = await _service.BuildCalendarAsync(request);
+
+        // Assert
+        result[0].StartTime.Should().Be(new DateTime(2023, 1, 1, 12, 0, 0));
+    }
 
     [Fact]
     public async Task BuildCalendarAsync_NoSchedulesFound_ReturnsEmptyList()

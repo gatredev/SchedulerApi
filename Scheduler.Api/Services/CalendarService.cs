@@ -9,16 +9,18 @@ namespace Scheduler.Api.Services;
 public class CalendarService
 {
     private readonly ApplicationDbContext _context;
+    private readonly TimeProvider _timeProvider;
 
-    public CalendarService(ApplicationDbContext context)
+    public CalendarService(ApplicationDbContext context, TimeProvider timeProvider)
     {
         _context = context;
+        _timeProvider = timeProvider;
     }
 
-    public async Task<List<SlotItem>> BuildCalendarAsync(AvailableSlotsRequest request)
+    public async Task<List<AvailableSlotResponse>> BuildCalendarAsync(AvailableSlotsRequest request)
     {
         // TODO: Adjust date from year. -2 added for testing
-        var effectiveDateFrom = new[] { request.DateFrom, DateOnly.FromDateTime(DateTime.Now.AddYears(-2)) }.Max()!.Value;
+        var effectiveDateFrom = new[] { request.DateFrom, DateOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime) }.Max()!.Value;
         var effectiveDateTo = new[] { request.DateTo, effectiveDateFrom.AddMonths(3) }.Min()!.Value;
 
         // Pobierz grafiki dla danej specjalizacji (i opcjonalnie lekarza)
@@ -71,11 +73,11 @@ public class CalendarService
         return cal;
     }
 
-    private async Task<List<SlotItem>> BuildCalendarAsync(List<ScheduleConfiguration> configurations, DateOnly dateFrom, DateOnly dateTo, AvailableSlotsRequest request)
+    private async Task<List<AvailableSlotResponse>> BuildCalendarAsync(List<ScheduleConfiguration> configurations, DateOnly dateFrom, DateOnly dateTo, AvailableSlotsRequest request)
     {
         var appointments = await GetAppointmentsAsync(dateFrom, dateTo, configurations.Select(i => i.DoctorId).Distinct().ToArray());
 
-        var calendar = new List<SlotItem>();
+        var calendar = new List<AvailableSlotResponse>();
         var dateCursor = dateFrom;
         var toTake = request.MaxResults;
         while (dateCursor <= dateTo && toTake > 0)
@@ -94,10 +96,10 @@ public class CalendarService
                     continue;
 
                 var doctorDailyAppointments = dailyAppointments.Where(i => i.DoctorId == dailyConfigurationCandidate.DoctorId).ToList();
-                var slots = await BuildSlotsAsync(dailyConfigurationCandidate, doctorDailyAppointments, request.SlotDurationMinutes);
+                var slots = await BuildSlotsAsync(dailyConfigurationCandidate, doctorDailyAppointments, request.SlotDurationMinutes, dateCursor);
 
                 calendar.AddRange(
-                    slots.Take(toTake).Select(i => new SlotItem
+                    slots.Take(toTake).Select(i => new AvailableSlotResponse
                     {
                         SpecializationName = dailyConfigurationCandidate.SpecializationName,
                         DoctorName = dailyConfigurationCandidate.DoctorName,
@@ -128,7 +130,7 @@ public class CalendarService
         return appointments;
     }
 
-    private async Task<List<(TimeOnly startTime, TimeOnly endTime)>> BuildSlotsAsync(ScheduleConfiguration slotCandidate, List<Appointment> appointments, int slotDurationMinutes)
+    private async Task<List<(TimeOnly startTime, TimeOnly endTime)>> BuildSlotsAsync(ScheduleConfiguration slotCandidate, List<Appointment> appointments, int slotDurationMinutes, DateOnly dateCursor)
     {
         var overlappingAppointments = appointments
             .Where(i => !(i.StartTime.TimeOfDay > slotCandidate.EndTime.ToTimeSpan()))
@@ -136,13 +138,15 @@ public class CalendarService
             .ToList();
 
         var freeSlots = new List<(TimeOnly Start, TimeOnly End)>();
-        if (!overlappingAppointments.Any())
-        {
-            freeSlots.Add((slotCandidate.StartTime, slotCandidate.EndTime));
-            return freeSlots;
-        }
 
         var slotStartTime = slotCandidate.StartTime;
+
+        // prevent slot starting time before now 
+        if (dateCursor.ToDateTime(slotStartTime) < _timeProvider.GetLocalNow().DateTime)
+        {
+            slotStartTime = TimeOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime);
+        }
+
         foreach (var appointment in overlappingAppointments.OrderBy(i => i.StartTime))
         {
             if (slotStartTime.AddMinutes(slotDurationMinutes).ToTimeSpan() > appointment.StartTime.TimeOfDay)

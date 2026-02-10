@@ -13,6 +13,8 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<CalendarService>();
 
+builder.Services.AddSingleton(TimeProvider.System);
+
 // Configure database
 builder.Services.AddSqlite<ApplicationDbContext>(builder.Configuration.GetConnectionString("DefaultConnection"));
 
