@@ -11,8 +11,8 @@ public class Schedule
 
     public DayOfWeekFlags DaysOfWeek { get; set; } = DayOfWeekFlags.Everyday;
 
-    public TimeSpan StartTime { get; set; }
-    public TimeSpan EndTime { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
 
     public ICollection<ScheduleSpecialization> ScheduleSpecializations { get; set; } = new List<ScheduleSpecialization>();
 }
