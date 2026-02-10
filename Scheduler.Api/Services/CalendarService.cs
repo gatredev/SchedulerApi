@@ -3,8 +3,6 @@ using Scheduler.Api.Data;
 using Scheduler.Api.DTOs;
 using Scheduler.Api.Extensions;
 using Scheduler.Api.Models;
-using System.Collections;
-using System.Runtime.InteropServices;
 
 namespace Scheduler.Api.Services;
 
@@ -17,11 +15,11 @@ public class CalendarService
         _context = context;
     }
 
-    public async Task<object> Test(AvailableSlotsRequest request)
+    public async Task<List<SlotItem>> BuildCalendarAsync(AvailableSlotsRequest request)
     {
         // TODO: Adjust date from year. -2 added for testing
         var effectiveDateFrom = new[] { request.DateFrom, DateOnly.FromDateTime(DateTime.Now.AddYears(-2)) }.Max()!.Value;
-        var effectiveDateTo = new[] { request.DateTo, effectiveDateFrom.AddDays(31) }.Min()!.Value;
+        var effectiveDateTo = new[] { request.DateTo, effectiveDateFrom.AddMonths(3) }.Min()!.Value;
 
         // Pobierz grafiki dla danej specjalizacji (i opcjonalnie lekarza)
         var scheduleCandidatesQuery = _context.ScheduleSpecializations.AsNoTracking()
@@ -35,302 +33,132 @@ public class CalendarService
             scheduleCandidatesQuery = scheduleCandidatesQuery.Where(s => s.Schedule.DoctorId == request.DoctorId.Value);
         }
 
-        var durationTicks = request.SlotDurationMinutes * TimeSpan.TicksPerSecond;
-
         scheduleCandidatesQuery = scheduleCandidatesQuery
             .Where(i => !(effectiveDateFrom > i.Schedule.EndDate))
             .Where(i => !(effectiveDateTo < i.Schedule.StartDate));
 
-        var scheduleCandidates = await scheduleCandidatesQuery.ToListAsync();
+        var scheduleConfigurationCandidates = await scheduleCandidatesQuery.ToListAsync();
 
-        scheduleCandidates = scheduleCandidates
+        if (!scheduleConfigurationCandidates.Any())
+        {
+            return new();
+        }
+
+        // check for general slot availability
+        scheduleConfigurationCandidates = scheduleConfigurationCandidates
             .Where(i => (i.Schedule.EndTime - i.Schedule.StartTime) >= TimeSpan.FromMinutes(request.SlotDurationMinutes)).ToList();
 
-        if (!scheduleCandidates.Any())
+        if (!scheduleConfigurationCandidates.Any())
         {
-            return new ();
+            return new();
         }
 
-        var slotCandidates = scheduleCandidates.Select(i => new
+        var scheduleConfigurations = scheduleConfigurationCandidates.Select(i => new ScheduleConfiguration
         {
-            i.Schedule.StartDate,
-            i.Schedule.EndDate,
-            i.Schedule.StartTime,
-            i.Schedule.EndTime,
-            i.Schedule.DaysOfWeek,
+            StartDate = i.Schedule.StartDate,
+            EndDate = i.Schedule.EndDate,
+            StartTime = i.Schedule.StartTime,
+            EndTime = i.Schedule.EndTime,
+            DaysOfWeek = i.Schedule.DaysOfWeek,
             DoctorName = $"{i.Schedule.Doctor.FirstName} {i.Schedule.Doctor.LastName}",
+            DoctorId = i.Schedule.DoctorId,
             SpecializationName = i.Specialization.Name
-        });
+        }).ToList();
 
-        // build week
-        var week = new Dictionary<DateOnly, List<KeyValuePair<string, KeyValuePair<TimeSpan, TimeSpan>>>>();
+        var cal = await BuildCalendarAsync(scheduleConfigurations, effectiveDateFrom, effectiveDateTo, request);
+        return cal;
+    }
 
-        var d = effectiveDateFrom;
+    private async Task<List<SlotItem>> BuildCalendarAsync(List<ScheduleConfiguration> configurations, DateOnly dateFrom, DateOnly dateTo, AvailableSlotsRequest request)
+    {
+        var appointments = await GetAppointmentsAsync(dateFrom, dateTo, configurations.Select(i => i.DoctorId).Distinct().ToArray());
+
+        var calendar = new List<SlotItem>();
+        var dateCursor = dateFrom;
         var toTake = request.MaxResults;
-        while (d <= effectiveDateTo && toTake > 0)
+        while (dateCursor <= dateTo && toTake > 0)
         {
-            var dailySlotCandidates = slotCandidates
-                .Where(i => i.StartDate <= d)
-                .Where(i => !i.EndDate.HasValue || d <= i.EndDate)
+            var dailyAppointments = appointments.Where(i => i.StartTime.Date == dateCursor.ToDateTime(TimeOnly.MinValue)).ToList();
+
+            var dailyConfigurationCandidates = configurations
+                .Where(i => i.StartDate <= dateCursor)
+                .Where(i => !i.EndDate.HasValue || dateCursor <= i.EndDate)
                 .ToList();
 
-            var slots = new List<KeyValuePair<string, KeyValuePair<TimeSpan, TimeSpan>>>();
-
-            foreach(var dailySlot in dailySlotCandidates)
+            foreach (var dailyConfigurationCandidate in dailyConfigurationCandidates)
             {
-                if (!dailySlot.DaysOfWeek.HasDay(d.DayOfWeek))
-                {
+                if (dailyConfigurationCandidate.StartDate != dailyConfigurationCandidate.EndDate
+                    && !dailyConfigurationCandidate.DaysOfWeek.HasDay(dateCursor.DayOfWeek))
                     continue;
-                }
 
-                var startTime = dailySlot.StartTime;
-                var endTime = startTime + TimeSpan.FromMinutes(request.SlotDurationMinutes);
-                var doctor = dailySlot.DoctorName;
+                var doctorDailyAppointments = dailyAppointments.Where(i => i.DoctorId == dailyConfigurationCandidate.DoctorId).ToList();
+                var slots = await BuildSlotsAsync(dailyConfigurationCandidate, doctorDailyAppointments, request.SlotDurationMinutes);
 
-                while (endTime <= dailySlot.EndTime)
-                {
-                    slots.Add(KeyValuePair.Create(doctor, KeyValuePair.Create(startTime, endTime)));
+                calendar.AddRange(
+                    slots.Take(toTake).Select(i => new SlotItem
+                    {
+                        SpecializationName = dailyConfigurationCandidate.SpecializationName,
+                        DoctorName = dailyConfigurationCandidate.DoctorName,
+                        StartTime = dateCursor.ToDateTime(i.startTime),
+                        EndTime = dateCursor.ToDateTime(i.endTime),
+                    }));
 
-                    startTime = endTime;
-                    endTime += TimeSpan.FromMinutes(request.SlotDurationMinutes);
-                }
+                toTake -= slots.Count;
             }
 
-
-            week[d] = slots.OrderBy(i => i.Value.Key).Take(toTake).ToList();
-            toTake -= slots.Count;
-
-            d = d.AddDays(1);
-        }
-        var s = new List<AvailableSlotResponse>();
-        foreach(var day in week)
-        {
-
-            var ss = day.Value.Select(i => new AvailableSlotResponse
-            {
-                DoctorName = i.Key,
-                StartTime = day.Key.ToDateTime(TimeOnly.FromTimeSpan(i.Value.Key)),
-                EndTime = day.Key.ToDateTime(TimeOnly.FromTimeSpan(i.Value.Value)),
-                SpecializationName = slotCandidates.First().SpecializationName,
-            });
-
-            s.AddRange(ss);
+            dateCursor = dateCursor.AddDays(1);
         }
 
-        s = s.OrderBy(i => i.StartTime).ToList();
-
-        return s;
+        return calendar;
     }
 
-    //public async Task<List<AvailableSlotResponse>> FindAvailableSlots(AvailableSlotsRequest request)
-    //{
-    //    var effectiveDateFrom = new[] { request.DateFrom, DateOnly.FromDateTime(DateTime.Now) }.Max()!.Value;
-    //    var effectiveDateTo = new[] { request.DateTo, effectiveDateFrom.AddDays(7) }.Min()!.Value;
-
-    //    // Pobierz grafiki dla danej specjalizacji (i opcjonalnie lekarza)
-    //    var scheduleCandidatesQuery = _context.ScheduleSpecializations
-    //        .Include(s => s.Schedule)
-    //            .ThenInclude(i => i.Doctor)
-    //        .Include(i => i.Specialization)
-    //        .Where(i => i.SpecializationId == request.SpecializationId);
-
-    //    if (request.DoctorId.HasValue)
-    //    {
-    //        scheduleCandidatesQuery = scheduleCandidatesQuery.Where(s => s.Schedule.DoctorId == request.DoctorId.Value);
-    //    }
-
-    //    scheduleCandidatesQuery = scheduleCandidatesQuery
-    //        .Where(i => !(effectiveDateFrom > i.Schedule.EndDate))
-    //        .Where(i => !(effectiveDateTo < i.Schedule.StartDate))
-    //        .Where(i => (i.Schedule.EndTime - i.Schedule.StartTime).TotalMinutes >= request.SlotDurationMinutes);
-
-    //    var scheduleCandidates = await scheduleCandidatesQuery.ToListAsync();
-
-    //    if (!scheduleCandidates.Any())
-    //    {
-    //        return new List<AvailableSlotResponse>();
-    //    }
-
-    //    var slotCandidates = scheduleCandidates.Select(i => new
-    //    {
-    //        i.Schedule.StartDate,
-    //        i.Schedule.EndDate,
-    //        i.Schedule.StartTime,
-    //        i.Schedule.EndTime,
-    //        i.Schedule.DaysOfWeek,
-    //    });
-
-    //    // build week
-
-    //    var week = new Dictionary<DateOnly, string[]>();
-
-    //    var d = effectiveDateFrom;
-    //    while (d <= effectiveDateTo)
-    //    {
-    //        var dailySlotCandidates = slotCandidates
-    //            .Where(i => i.StartDate <= d)
-    //            .Where(i => d <= i.EndDate);
-
-    //        week[d] = dailySlotCandidates.Select(i => $"{i.StartTime}-{i.EndTime}").ToArray();
-
-    //        d.AddDays(1);
-    //    }
-
-        //foreach(var d in effectiveDateFrom)
-        //{
-
-        //}
-
-        //foreach (var slot in slotCandidates) 
-        //{
-        //    var date = slot.
-
-
-        //}
-
-        //// Pobierz zajęte terminy dla lekarzy z grafików
-        //var doctorIds = scheduleCandidates.Select(s => s.Schedule.DoctorId).Distinct().ToList();
-        //var app = from appointment in _context.Appointments
-
-        ////var appointments = await _context.Appointments
-        ////    .Where(a => doctorIds.Contains(a.DoctorId))
-        ////    .Where(a => a.EndTime >= effectiveDateFrom && a.StartTime <= effectiveDateTo)
-        ////    .ToListAsync();
-
-        //var availableSlots = new List<AvailableSlotResponse>();
-
-        //foreach (var schedule in schedules)
-        //{
-        //    var scheduleDates = GetScheduleDates(schedule, dateFrom, dateTo);
-        //    var doctorAppointments = appointments.Where(a => a.DoctorId == schedule.DoctorId).ToList();
-        //    var specialization = schedule.ScheduleSpecializations
-        //        .First(ss => ss.SpecializationId == request.SpecializationId)
-        //        .Specialization;
-
-        //    foreach (var date in scheduleDates)
-        //    {
-        //        var slots = GenerateSlots(
-        //            date,
-        //            schedule.StartTime,
-        //            schedule.EndTime,
-        //            request.SlotDurationMinutes,
-        //            doctorAppointments
-        //        );
-
-        //        availableSlots.AddRange(slots.Select(slotStart => new AvailableSlotResponse
-        //        {
-        //            DoctorFirstName = schedule.Doctor.FirstName,
-        //            DoctorLastName = schedule.Doctor.LastName,
-        //            SpecializationName = specialization.Name,
-        //            StartTime = slotStart
-        //        }));
-
-        //        if (availableSlots.Count >= request.MaxResults)
-        //        {
-        //            return availableSlots
-        //                .OrderBy(s => s.StartTime)
-        //                .Take(request.MaxResults)
-        //                .ToList();
-        //        }
-        //    }
-        //}
-
-        //return availableSlots
-        //    .OrderBy(s => s.StartTime)
-        //    .Take(request.MaxResults)
-        //    .ToList();
-    //}
-
-    //private List<DateTime> GetScheduleDates(Schedule schedule, DateTime dateFrom, DateTime dateTo)
-    //{
-    //    var dates = new List<DateTime>();
-
-    //    if (!schedule.IsRecurring && schedule.SingleDate.HasValue)
-    //    {
-    //        // Grafik pojedynczy
-    //        if (schedule.SingleDate.Value >= dateFrom.Date && schedule.SingleDate.Value <= dateTo.Date)
-    //        {
-    //            dates.Add(schedule.SingleDate.Value);
-    //        }
-    //    }
-    //    else if (schedule.IsRecurring && schedule.RecurringStartDate.HasValue && schedule.DaysOfWeek.HasValue)
-    //    {
-    //        // Grafik cykliczny
-    //        var startDate = schedule.RecurringStartDate.Value > dateFrom.Date
-    //            ? schedule.RecurringStartDate.Value
-    //            : dateFrom.Date;
-    //        var endDate = schedule.RecurringEndDate.HasValue && schedule.RecurringEndDate.Value < dateTo.Date
-    //            ? schedule.RecurringEndDate.Value
-    //            : dateTo.Date;
-
-    //        var currentDate = startDate;
-    //        while (currentDate <= endDate)
-    //        {
-    //            var dayOfWeekFlag = GetDayOfWeekFlag(currentDate.DayOfWeek);
-    //            if ((schedule.DaysOfWeek.Value & dayOfWeekFlag) != 0)
-    //            {
-    //                dates.Add(currentDate);
-    //            }
-    //            currentDate = currentDate.AddDays(1);
-    //        }
-    //    }
-
-    //    return dates;
-    //}
-
-    private int GetDayOfWeekFlag(DayOfWeek dayOfWeek)
+    private async Task<List<Appointment>> GetAppointmentsAsync(DateOnly from, DateOnly to, int[] doctorIds)
     {
-        return dayOfWeek switch
-        {
-            DayOfWeek.Monday => 1,
-            DayOfWeek.Tuesday => 2,
-            DayOfWeek.Wednesday => 4,
-            DayOfWeek.Thursday => 8,
-            DayOfWeek.Friday => 16,
-            DayOfWeek.Saturday => 32,
-            DayOfWeek.Sunday => 64,
-            _ => 0
-        };
+        var fromDateTime = from.ToDateTime(TimeOnly.MinValue);
+        var toDateTime = to.ToDateTime(TimeOnly.MaxValue);
+
+        var appointments = await _context.Appointments.AsNoTracking()
+            .Where(i => doctorIds.Contains(i.DoctorId))
+            .Where(i => !(fromDateTime > i.EndTime))
+            .Where(i => !(toDateTime < i.StartTime))
+            .ToListAsync();
+
+        return appointments;
     }
 
-    private List<DateTime> GenerateSlots(
-        DateTime date,
-        TimeSpan startTime,
-        TimeSpan endTime,
-        int slotDurationMinutes,
-        List<Appointment> appointments)
+    private async Task<List<(TimeOnly startTime, TimeOnly endTime)>> BuildSlotsAsync(ScheduleConfiguration slotCandidate, List<Appointment> appointments, int slotDurationMinutes)
     {
-        var slots = new List<DateTime>();
-        var currentTime = date.Add(startTime);
-        var scheduleEnd = date.Add(endTime);
-        var now = DateTime.Now;
+        var overlappingAppointments = appointments
+            .Where(i => !(i.StartTime.TimeOfDay > slotCandidate.EndTime.ToTimeSpan()))
+            .Where(i => !(i.EndTime.TimeOfDay < slotCandidate.StartTime.ToTimeSpan()))
+            .ToList();
 
-        while (currentTime.Add(TimeSpan.FromMinutes(slotDurationMinutes)) <= scheduleEnd)
+        var freeSlots = new List<(TimeOnly Start, TimeOnly End)>();
+        if (!overlappingAppointments.Any())
         {
-            var slotEnd = currentTime.Add(TimeSpan.FromMinutes(slotDurationMinutes));
+            freeSlots.Add((slotCandidate.StartTime, slotCandidate.EndTime));
+            return freeSlots;
+        }
 
-            // Sprawdź czy slot jest w przyszłości
-            if (currentTime <= now)
+        var slotStartTime = slotCandidate.StartTime;
+        foreach (var appointment in overlappingAppointments.OrderBy(i => i.StartTime))
+        {
+            if (slotStartTime.AddMinutes(slotDurationMinutes).ToTimeSpan() > appointment.StartTime.TimeOfDay)
             {
-                currentTime = currentTime.AddMinutes(1);
+                slotStartTime = TimeOnly.FromTimeSpan(appointment.EndTime.TimeOfDay);
                 continue;
             }
 
-            // Sprawdź czy slot nie koliduje z istniejącymi rezerwacjami
-            var hasConflict = appointments.Any(a =>
-                (currentTime >= a.StartTime && currentTime < a.EndTime) ||
-                (slotEnd > a.StartTime && slotEnd <= a.EndTime) ||
-                (currentTime <= a.StartTime && slotEnd >= a.EndTime)
-            );
-
-            if (!hasConflict)
-            {
-                slots.Add(currentTime);
-            }
-
-            currentTime = currentTime.AddMinutes(1);
+            var slotEndTime = TimeOnly.FromTimeSpan(appointment.StartTime.TimeOfDay);
+            freeSlots.Add((slotStartTime, slotEndTime));
+            slotStartTime = TimeOnly.FromTimeSpan(appointment.EndTime.TimeOfDay);
         }
 
-        return slots;
+        if (slotStartTime.AddMinutes(slotDurationMinutes).ToTimeSpan() <= slotCandidate.EndTime.ToTimeSpan())
+        {
+            freeSlots.Add((slotStartTime, slotCandidate.EndTime));
+        }
+
+        return freeSlots;
     }
 }
