@@ -183,7 +183,7 @@ public class CalendarServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task BuildCalendarAsync_SingleDayScheduleNoAppointments_ReturnsOneSlot()
+    public async Task BuildCalendarAsync_SingleDayScheduleNoAppointments_ReturnsAllDaySlots()
     {
         // Arrange
         var specialization = new Specialization { Id = 1, Name = "Kardiologia" };
@@ -222,15 +222,15 @@ public class CalendarServiceTests : IDisposable
         var result = await _service.BuildCalendarAsync(request);
 
         // Assert
-        result.Should().HaveCount(1);
+        result.Should().HaveCount(4);
         result[0].SpecializationName.Should().Be("Kardiologia");
         result[0].DoctorName.Should().Be("Jan Kowalski");
         result[0].StartTime.Should().Be(new DateTime(2025, 9, 15, 10, 0, 0));
-        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 12, 0, 0));
+        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 10, 30, 0));
     }
 
     [Fact]
-    public async Task BuildCalendarAsync_WithAppointmentInMiddle_ReturnsTwoSlots()
+    public async Task BuildCalendarAsync_WithAppointmentBetweenSlots_ReturnsFreeSlotsBeforeAndAfter()
     {
         // Arrange
         var specialization = new Specialization { Id = 1, Name = "Kardiologia" };
@@ -271,22 +271,19 @@ public class CalendarServiceTests : IDisposable
             DateFrom = new DateOnly(2025, 9, 1),
             DateTo = new DateOnly(2025, 9, 30),
             SlotDurationMinutes = 30,
-            MaxResults = 10
+            MaxResults = 100
         };
 
         // Act
         var result = await _service.BuildCalendarAsync(request);
 
         // Assert
-        result.Should().HaveCount(2);
+        result.Should().HaveCount(7);
 
-        // First slot: 10:00 - 11:00
         result[0].StartTime.Should().Be(new DateTime(2025, 9, 15, 10, 0, 0));
-        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 11, 0, 0));
-
-        // Second slot: 11:30 - 14:00
-        result[1].StartTime.Should().Be(new DateTime(2025, 9, 15, 11, 30, 0));
-        result[1].EndTime.Should().Be(new DateTime(2025, 9, 15, 14, 0, 0));
+        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 10, 30, 0));
+        result[6].StartTime.Should().Be(new DateTime(2025, 9, 15, 13, 30, 0));
+        result[6].EndTime.Should().Be(new DateTime(2025, 9, 15, 14, 0, 0));
     }
 
     [Fact]
@@ -330,18 +327,18 @@ public class CalendarServiceTests : IDisposable
             DateFrom = new DateOnly(2025, 9, 1),
             DateTo = new DateOnly(2025, 9, 30),
             SlotDurationMinutes = 30,
-            MaxResults = 10
+            MaxResults = 100
         };
 
         // Act
         var result = await _service.BuildCalendarAsync(request);
 
         // Assert
-        result.Should().HaveCount(4);
+        result.Should().HaveCount(13);
         result[0].StartTime.Should().Be(new DateTime(2025, 9, 15, 8, 0, 0));
-        result[1].StartTime.Should().Be(new DateTime(2025, 9, 15, 9, 30, 0));
-        result[2].StartTime.Should().Be(new DateTime(2025, 9, 15, 11, 30, 0));
-        result[3].StartTime.Should().Be(new DateTime(2025, 9, 15, 14, 30, 0));
+        result[1].StartTime.Should().Be(new DateTime(2025, 9, 15, 8, 30, 0));
+        result[5].StartTime.Should().Be(new DateTime(2025, 9, 15, 11, 30, 0));
+        result[6].StartTime.Should().Be(new DateTime(2025, 9, 15, 12, 00, 0));
     }
 
     [Fact]
@@ -379,14 +376,14 @@ public class CalendarServiceTests : IDisposable
             DateFrom = new DateOnly(2025, 9, 1),
             DateTo = new DateOnly(2025, 9, 10),
             SlotDurationMinutes = 30,
-            MaxResults = 10
+            MaxResults = 100
         };
 
         // Act
         var result = await _service.BuildCalendarAsync(request);
 
         // Assert - Should have slots for: Sep 1 (Mon), Sep 3 (Wed), Sep 8 (Mon), Sep 10 (Wed)
-        result.Should().HaveCount(4);
+        result.Should().HaveCount(16);
         result.Should().Contain(s => s.StartTime.Date == new DateTime(2025, 9, 1).Date);
         result.Should().Contain(s => s.StartTime.Date == new DateTime(2025, 9, 3).Date);
         result.Should().Contain(s => s.StartTime.Date == new DateTime(2025, 9, 8).Date);
@@ -450,7 +447,7 @@ public class CalendarServiceTests : IDisposable
         var result = await _service.BuildCalendarAsync(request);
 
         // Assert
-        result.Should().HaveCount(1);
+        result.Should().HaveCount(4);
         result[0].DoctorName.Should().Be("Jan Kowalski");
         result.Should().NotContain(s => s.DoctorName == "Anna Nowak");
     }
@@ -501,7 +498,7 @@ public class CalendarServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task BuildCalendarAsync_AppointmentAtStartOfSchedule_ReturnsSlotAfter()
+    public async Task BuildCalendarAsync_AppointmentAtStartOfSchedule_ReturnsSlotsAfter()
     {
         // Arrange
         var specialization = new Specialization { Id = 1, Name = "Kardiologia" };
@@ -549,13 +546,15 @@ public class CalendarServiceTests : IDisposable
         var result = await _service.BuildCalendarAsync(request);
 
         // Assert
-        result.Should().HaveCount(1);
+        result.Should().HaveCount(7);
         result[0].StartTime.Should().Be(new DateTime(2025, 9, 15, 10, 30, 0));
-        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 14, 0, 0));
+        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 11, 0, 0));
+        result[6].StartTime.Should().Be(new DateTime(2025, 9, 15, 13, 30, 0));
+        result[6].EndTime.Should().Be(new DateTime(2025, 9, 15, 14, 0, 0));
     }
 
     [Fact]
-    public async Task BuildCalendarAsync_AppointmentAtEndOfSchedule_ReturnsSlotBefore()
+    public async Task BuildCalendarAsync_AppointmentAtEndOfSchedule_ReturnsSlotsBefore()
     {
         // Arrange
         var specialization = new Specialization { Id = 1, Name = "Kardiologia" };
@@ -603,9 +602,11 @@ public class CalendarServiceTests : IDisposable
         var result = await _service.BuildCalendarAsync(request);
 
         // Assert
-        result.Should().HaveCount(1);
+        result.Should().HaveCount(7);
         result[0].StartTime.Should().Be(new DateTime(2025, 9, 15, 10, 0, 0));
-        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 13, 30, 0));
+        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 10, 30, 0));
+        result[6].StartTime.Should().Be(new DateTime(2025, 9, 15, 13, 0, 0));
+        result[6].EndTime.Should().Be(new DateTime(2025, 9, 15, 13, 30, 0));
     }
 
     [Fact]
@@ -805,6 +806,52 @@ public class CalendarServiceTests : IDisposable
             DateFrom = new DateOnly(2025, 9, 1),
             DateTo = new DateOnly(2025, 9, 30),
             SlotDurationMinutes = 30,
+            MaxResults = 100
+        };
+
+        // Act
+        var result = await _service.BuildCalendarAsync(request);
+
+        // Assert
+        result.Should().HaveCount(8);
+        result.Should().Contain(s => s.DoctorName == "Jan Kowalski");
+        result.Should().Contain(s => s.DoctorName == "Anna Nowak");
+    }
+
+
+    [Fact]
+    public async Task BuildCalendarAsync_MultipleSlotsAllowedInDayRange_ReturnsSlotsSplittedBySlotTime()
+    {
+        // Arrange
+        var specialization = new Specialization { Id = 1, Name = "Kardiologia" };
+        var doctor = new Doctor { Id = 1, FirstName = "Jan", LastName = "Kowalski" };
+
+        var schedule = new Schedule
+        {
+            Id = 1,
+            DoctorId = doctor.Id,
+            Doctor = doctor,
+            StartDate = new DateOnly(2023, 9, 1),
+            EndDate = new DateOnly(2023, 9, 1),
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(14, 0),
+            ScheduleSpecializations = new List<ScheduleSpecialization>
+            {
+                new ScheduleSpecialization { SpecializationId = specialization.Id, Specialization = specialization }
+            }
+        };
+
+        _context.Specializations.Add(specialization);
+        _context.Doctors.Add(doctor);
+        _context.Schedules.Add(schedule);
+        await _context.SaveChangesAsync();
+
+        var request = new AvailableSlotsRequest
+        {
+            SpecializationId = specialization.Id,
+            DateFrom = new DateOnly(2023, 9, 1),
+            DateTo = new DateOnly(2025, 9, 30),
+            SlotDurationMinutes = 30,
             MaxResults = 10
         };
 
@@ -812,10 +859,9 @@ public class CalendarServiceTests : IDisposable
         var result = await _service.BuildCalendarAsync(request);
 
         // Assert
-        result.Should().HaveCount(2);
-        result.Should().Contain(s => s.DoctorName == "Jan Kowalski");
-        result.Should().Contain(s => s.DoctorName == "Anna Nowak");
+        result.Should().HaveCount(8);
+        result[0].StartTime.Should().Be(new DateTime(2023, 9, 1, 10, 0, 0));
+        result[5].StartTime.Should().Be(new DateTime(2023, 9, 1, 12, 30, 0));
     }
-
     #endregion
 }
