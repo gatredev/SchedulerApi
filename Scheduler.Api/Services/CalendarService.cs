@@ -165,6 +165,25 @@ public class CalendarService
             freeSlots.Add((slotStartTime, slotCandidate.EndTime));
         }
 
+        var effectiveFreeSlots = freeSlots.SelectMany(i => SplitSlotsBySlotTime(i, slotDurationMinutes)).ToList();
+
+        return effectiveFreeSlots;
+    }
+
+
+    private List<(TimeOnly startTime, TimeOnly endTime)> SplitSlotsBySlotTime((TimeOnly startTime, TimeOnly endTime) slot, int slotDurationMinutes)
+    {
+        var freeSlots = new List<(TimeOnly Start, TimeOnly End)>();
+
+        var slotStartTime = slot.startTime;
+        var slotEndTime = slotStartTime.AddMinutes(slotDurationMinutes);
+        while (slotEndTime <= slot.endTime)
+        {
+            freeSlots.Add((slotStartTime, slotEndTime));
+            slotStartTime = slotEndTime;
+            slotEndTime = slotEndTime.AddMinutes(slotDurationMinutes);
+        }
+
         return freeSlots;
     }
 }
