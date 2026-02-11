@@ -19,7 +19,6 @@ public class CalendarService
 
     public async Task<List<AvailableSlotResponse>> BuildCalendarAsync(AvailableSlotsRequest request)
     {
-        // TODO: Adjust date from year. -2 added for testing
         var effectiveDateFrom = new[] { request.DateFrom, DateOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime) }.Max()!.Value;
         var effectiveDateTo = new[] { request.DateTo, effectiveDateFrom.AddMonths(3) }.Min()!.Value;
 
@@ -79,8 +78,7 @@ public class CalendarService
 
         var calendar = new List<AvailableSlotResponse>();
         var dateCursor = dateFrom;
-        var toTake = request.MaxResults;
-        while (dateCursor <= dateTo && toTake > 0)
+        while (dateCursor <= dateTo && calendar.Count < request.MaxResults)
         {
             var dailyAppointments = appointments.Where(i => i.StartTime.Date == dateCursor.ToDateTime(TimeOnly.MinValue)).ToList();
 
@@ -99,21 +97,19 @@ public class CalendarService
                 var slots = await BuildSlotsAsync(dailyConfigurationCandidate, doctorDailyAppointments, request.SlotDurationMinutes, dateCursor);
 
                 calendar.AddRange(
-                    slots.Take(toTake).Select(i => new AvailableSlotResponse
+                    slots.Select(i => new AvailableSlotResponse
                     {
                         SpecializationName = dailyConfigurationCandidate.SpecializationName,
                         DoctorName = dailyConfigurationCandidate.DoctorName,
                         StartTime = dateCursor.ToDateTime(i.startTime),
                         EndTime = dateCursor.ToDateTime(i.endTime),
                     }));
-
-                toTake -= slots.Count;
             }
 
             dateCursor = dateCursor.AddDays(1);
         }
 
-        return calendar;
+        return calendar.OrderBy(i => i.StartTime).Take(request.MaxResults).ToList();
     }
 
     private async Task<List<Appointment>> GetAppointmentsAsync(DateOnly from, DateOnly to, int[] doctorIds)
