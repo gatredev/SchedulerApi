@@ -286,6 +286,64 @@ public class CalendarServiceTests : IDisposable
         result[6].EndTime.Should().Be(new DateTime(2025, 9, 15, 14, 0, 0));
     }
 
+
+    [Fact]
+    public async Task BuildCalendarAsync_WithAppointmentAfterSlot_ReturnsSlotsOnlyFromSchedule()
+    {
+        // Arrange
+        var specialization = new Specialization { Id = 1, Name = "Kardiologia" };
+        var doctor = new Doctor { Id = 1, FirstName = "Jan", LastName = "Kowalski" };
+
+        var schedule = new Schedule
+        {
+            Id = 1,
+            DoctorId = doctor.Id,
+            Doctor = doctor,
+            StartDate = new DateOnly(2025, 9, 15),
+            EndDate = new DateOnly(2025, 9, 15),
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(14, 0),
+            ScheduleSpecializations = new List<ScheduleSpecialization>
+            {
+                new ScheduleSpecialization { SpecializationId = specialization.Id, Specialization = specialization }
+            }
+        };
+
+        var appointment = new Appointment
+        {
+            Id = 1,
+            DoctorId = doctor.Id,
+            StartTime = new DateTime(2025, 9, 15, 14, 30, 0),
+            EndTime = new DateTime(2025, 9, 15, 15, 00, 0)
+        };
+
+        _context.Specializations.Add(specialization);
+        _context.Doctors.Add(doctor);
+        _context.Schedules.Add(schedule);
+        _context.Appointments.Add(appointment);
+        await _context.SaveChangesAsync();
+
+        var request = new AvailableSlotsRequest
+        {
+            SpecializationId = specialization.Id,
+            DateFrom = new DateOnly(2025, 9, 1),
+            DateTo = new DateOnly(2025, 9, 30),
+            SlotDurationMinutes = 30,
+            MaxResults = 100
+        };
+
+        // Act
+        var result = await _service.BuildCalendarAsync(request);
+
+        // Assert
+        result.Should().HaveCount(8);
+
+        result[0].StartTime.Should().Be(new DateTime(2025, 9, 15, 10, 0, 0));
+        result[0].EndTime.Should().Be(new DateTime(2025, 9, 15, 10, 30, 0));
+        result[7].StartTime.Should().Be(new DateTime(2025, 9, 15, 13, 30, 0));
+        result[7].EndTime.Should().Be(new DateTime(2025, 9, 15, 14, 0, 0));
+    }
+
     [Fact]
     public async Task BuildCalendarAsync_MultipleAppointments_ReturnsCorrectSlots()
     {
